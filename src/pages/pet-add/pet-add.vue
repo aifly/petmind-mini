@@ -143,7 +143,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { supabaseUrl, supabaseAnonKey } from '@/utils/supabase'
+import { supabaseUrl, supabaseAnonKey, post } from '@/utils/supabase'
 
 const petTypes = [
   { id: 'dog', name: '🐕 狗狗', emoji: '🐕' },
@@ -213,36 +213,22 @@ const submitPet = async () => {
       uni.setStorageSync('deviceId', deviceId)
     }
 
-    const response = await fetch(`${supabaseUrl}/rest/v1/pets`, {
-      method: 'POST',
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        name: pet.value.name.trim(),
-        type: pet.value.type,
-        breed: pet.value.breed || null,
-        gender: pet.value.gender || null,
-        birth_date: pet.value.birth_date || null,
-        weight: pet.value.weight ? parseFloat(pet.value.weight) : null,
-        notes: pet.value.notes || null,
-        user_id: deviceId,
-        photo_url: pet.value.avatar || null
-      })
+    const data = await post(`${supabaseUrl}/rest/v1/pets`, {
+      name: pet.value.name.trim(),
+      type: pet.value.type,
+      breed: pet.value.breed || null,
+      gender: pet.value.gender || null,
+      birth_date: pet.value.birth_date || null,
+      weight: pet.value.weight ? parseFloat(pet.value.weight) : null,
+      notes: pet.value.notes || null,
+      user_id: deviceId,
+      photo_url: pet.value.avatar || null
     })
 
-    if (response.ok) {
-      uni.showToast({ title: '添加成功 🎉', icon: 'success' })
-      setTimeout(() => {
-        uni.navigateBack()
-      }, 1500)
-    } else {
-      const error = await response.json()
-      throw new Error(error.message || '添加失败')
-    }
+    uni.showToast({ title: '添加成功 🎉', icon: 'success' })
+    setTimeout(() => {
+      uni.navigateBack()
+    }, 1500)
   } catch (error: any) {
     console.error('添加宠物失败:', error)
     uni.showToast({ title: error.message || '添加失败', icon: 'none' })

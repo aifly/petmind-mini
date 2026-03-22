@@ -64,7 +64,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { supabaseUrl, supabaseAnonKey } from '@/utils/supabase'
+import { supabaseUrl, supabaseAnonKey, get } from '@/utils/supabase'
 
 interface Pet {
   id: string
@@ -116,19 +116,11 @@ const fetchPets = async () => {
       url += `&user_id=eq.${deviceId}`
     }
     
-    const response = await fetch(url, {
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`
-      }
-    })
-    
-    if (response.ok) {
-      const data = await response.json()
-      pets.value = data || []
-    }
+    const data = await get(url)
+    pets.value = data || []
   } catch (error) {
     console.error('获取宠物列表失败:', error)
+    uni.showToast({ title: '获取失败', icon: 'none' })
   } finally {
     loading.value = false
   }
