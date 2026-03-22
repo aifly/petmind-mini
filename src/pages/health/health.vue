@@ -1,32 +1,48 @@
 <template>
   <view class="container">
-    <view class="header">
-      <text class="title">健康记录</text>
-      <text class="subtitle">关注宠物健康每一天</text>
+    <!-- 页面标题 -->
+    <view class="page-header">
+      <text class="page-title">健康记录</text>
+      <text class="page-desc">关注宠物健康每一天</text>
+    </view>
+
+    <!-- 宠物选择 -->
+    <view class="pet-select" v-if="pets.length > 0">
+      <picker 
+        :range="pets" 
+        range-key="name"
+        @change="onPetChange"
+      >
+        <view class="pet-picker">
+          <text class="pet-picker-label">当前宠物：</text>
+          <text class="pet-picker-value">{{ selectedPet?.name || '请选择' }}</text>
+          <text class="pet-picker-arrow">›</text>
+        </view>
+      </picker>
     </view>
 
     <!-- 健康数据卡片 -->
-    <view class="health-cards">
+    <view class="health-cards" v-if="selectedPet">
       <view class="health-card">
-        <text class="card-icon">❤️</text>
-        <text class="card-value">{{ stats.weight || '--' }} kg</text>
+        <text class="card-icon">⚖️</text>
+        <text class="card-value">{{ latestWeight || '--' }} kg</text>
         <text class="card-label">体重</text>
       </view>
       <view class="health-card">
         <text class="card-icon">🌡️</text>
-        <text class="card-value">{{ stats.temperature || '--' }} °C</text>
+        <text class="card-value">{{ latestTemp || '--' }} °C</text>
         <text class="card-label">体温</text>
       </view>
       <view class="health-card">
         <text class="card-icon">💩</text>
-        <text class="card-value">{{ stats.poopStatus || '正常' }}</text>
+        <text class="card-value">正常</text>
         <text class="card-label">排便</text>
       </view>
     </view>
 
-    <!-- 记录列表 -->
-    <view class="section-title">
-      <text>健康记录</text>
+    <!-- 健康记录列表 -->
+    <view class="section-title" v-if="records.length > 0">
+      <text>记录详情</text>
     </view>
 
     <view class="record-list" v-if="records.length > 0">
@@ -36,11 +52,11 @@
         :key="record.id"
       >
         <view class="record-icon">
-          <text>{{ getHealthIcon(record.health_type) }}</text>
+          <text>{{ getHealthIcon(record.record_type) }}</text>
         </view>
         <view class="record-content">
-          <text class="record-title">{{ getHealthTypeName(record.health_type) }}</text>
-          <text class="record-desc">{{ record.notes || '暂无备注' }}</text>
+          <text class="record-title">{{ getHealthTypeName(record.record_type) }}</text>
+          <text class="record-desc" v-if="record.notes">{{ record.notes }}</text>
         </view>
         <text class="record-date">{{ formatDate(record.created_at) }}</text>
       </view>
@@ -48,12 +64,12 @@
 
     <!-- 空状态 -->
     <view class="empty-state" v-else>
-      <text class="empty-text">暂无健康记录</text>
-      <text class="empty-hint">点击下方按钮添加记录</text>
+      <text class="empty-title">暂无健康记录</text>
+      <text class="empty-desc">点击下方按钮添加记录</text>
     </view>
 
-    <!-- 添加记录按钮 -->
-    <view class="fab" @click="showAddModal = true">
+    <!-- 添加记录悬浮按钮 -->
+    <view class="fab" @click="showAddModal = true" v-if="pets.length > 0">
       <text class="fab-icon">+</text>
     </view>
 
@@ -68,18 +84,18 @@
         <view class="form-group">
           <text class="label">宠物</text>
           <picker 
-            :range="petOptions" 
+            :range="pets" 
             range-key="name"
-            @change="onPetChange"
+            @change="onModalPetChange"
           >
             <view class="picker">
-              <text>{{ selectedPetName || '请选择宠物' }}</text>
+              <text>{{ selectedPetInModal?.name || '请选择宠物' }}</text>
             </view>
           </picker>
         </view>
 
         <view class="form-group">
-          <text class="label">健康类型</text>
+          <text class="label">记录类型</text>
           <picker 
             :range="healthTypes" 
             @change="onHealthTypeChange"
@@ -92,31 +108,17 @@
 
         <view class="form-group" v-if="healthType === '体重'">
           <text class="label">体重 (kg)</text>
-          <input 
-            class="input" 
-            type="number" 
-            v-model="weight" 
-            placeholder="请输入体重"
-          />
+          <input class="input" type="digit" v-model="weight" placeholder="请输入体重" />
         </view>
 
         <view class="form-group" v-if="healthType === '体温'">
           <text class="label">体温 (°C)</text>
-          <input 
-            class="input" 
-            type="number" 
-            v-model="temperature" 
-            placeholder="请输入体温"
-          />
+          <input class="input" type="digit" v-model="temperature" placeholder="请输入体温" />
         </view>
 
         <view class="form-group">
           <text class="label">备注</text>
-          <textarea 
-            class="textarea" 
-            v-model="notes" 
-            placeholder="请输入备注"
-          />
+          <textarea class="textarea" v-model="notes" placeholder="请输入备注" />
         </view>
 
         <button class="submit-btn" @click="addRecord">保存</button>
@@ -126,82 +128,112 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { getLocalData, addLocalData, initMockData } from '@/utils/localData'
-
-interface Record {
-  id: string
-  pet_id: string
-  health_type: string
-  weight?: number
-  temperature?: number
-  notes?: string
-  created_at: string
-}
+import { ref, onMounted } from 'vue'
+import { supabaseUrl, get, post, getDeviceId } from '@/utils/supabase'
 
 interface Pet {
   id: string
   name: string
 }
 
-const records = ref<Record[]>([])
+interface Record {
+  id: string
+  pet_id: string
+  record_type: string
+  weight?: number
+  temperature?: number
+  notes?: string
+  created_at: string
+}
+
 const pets = ref<Pet[]>([])
+const records = ref<Record[]>([])
+const selectedPet = ref<Pet | null>(null)
+const selectedPetInModal = ref<Pet | null>(null)
 const showAddModal = ref(false)
-const selectedPetId = ref('')
 const healthType = ref('')
 const weight = ref('')
 const temperature = ref('')
 const notes = ref('')
+const latestWeight = ref('--')
+const latestTemp = ref('--')
 
-const stats = ref({
-  weight: '--',
-  temperature: '--',
-  poopStatus: '正常'
-})
+const healthTypes = ['体重', '体温', '驱虫', '疫苗', '生病', '其他']
 
-const healthTypes = ['体重', '体温', '排便', '驱虫', '疫苗', '生病', '其他']
-const petOptions = computed(() => pets.value)
-const selectedPetName = computed(() => {
-  const pet = pets.value.find(p => p.id === selectedPetId.value)
-  return pet?.name || ''
-})
+// 获取健康图标
+const getHealthIcon = (type?: string) => {
+  const icons: Record<string, string> = {
+    'weight': '⚖️',
+    'temperature': '🌡️',
+    'deworming': '💊',
+    'vaccine': '💉',
+    'sick': '🤒',
+    'other': '📝'
+  }
+  return icons[type || ''] || '📝'
+}
+
+const getHealthTypeName = (type?: string) => {
+  const names: Record<string, string> = {
+    'weight': '体重记录',
+    'temperature': '体温记录',
+    'deworming': '驱虫',
+    'vaccine': '疫苗',
+    'sick': '生病',
+    'feeding': '喂养',
+    'other': '其他'
+  }
+  return names[type || ''] || '健康记录'
+}
 
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr)
   return `${date.getMonth() + 1}/${date.getDate()}`
 }
 
-const getHealthIcon = (type: string) => {
-  const icons: Record<string, string> = {
-    '体重': '⚖️',
-    '体温': '🌡️',
-    '排便': '💩',
-    '驱虫': '💊',
-    '疫苗': '💉',
-    '生病': '🤒',
-    '其他': '📝'
-  }
-  return icons[type] || '📝'
-}
-
-const getHealthTypeName = (type: string) => {
-  return type || '健康记录'
-}
-
+// 获取宠物列表
 const fetchPets = async () => {
-  initMockData()
-  pets.value = getLocalData('pets')
-  if (pets.value.length > 0) {
-    selectedPetId.value = pets.value[0].id
+  try {
+    const userId = getDeviceId()
+    const url = `${supabaseUrl}/rest/v1/pets?select=id,name&user_id=eq.${userId}`
+    const data = await get(url)
+    pets.value = data || []
+    if (pets.value.length > 0 && !selectedPet.value) {
+      selectedPet.value = pets.value[0]
+      selectedPetInModal.value = pets.value[0]
+      fetchRecords()
+    }
+  } catch (error) {
+    console.error('获取宠物失败:', error)
   }
 }
 
+// 获取健康记录
 const fetchRecords = async () => {
-  records.value = getLocalData('health_records')
+  if (!selectedPet.value) return
+  try {
+    // 获取体重和体温记录
+    const url = `${supabaseUrl}/rest/v1/growth_records?select=*&pet_id=eq.${selectedPet.value.id}&order=created_at.desc&limit=20`
+    const data = await get(url)
+    records.value = data || []
+    
+    // 计算最新体重和体温
+    const weightRecord = records.value.find(r => r.record_type === 'weight')
+    const tempRecord = records.value.find(r => r.record_type === 'temperature')
+    latestWeight.value = weightRecord?.weight?.toString() || '--'
+    latestTemp.value = tempRecord?.temperature?.toString() || '--'
+  } catch (error) {
+    console.error('获取记录失败:', error)
+  }
 }
 
 const onPetChange = (e: any) => {
-  selectedPetId.value = pets.value[e.detail.value].id
+  selectedPet.value = pets.value[e.detail.value]
+  fetchRecords()
+}
+
+const onModalPetChange = (e: any) => {
+  selectedPetInModal.value = pets.value[e.detail.value]
 }
 
 const onHealthTypeChange = (e: any) => {
@@ -209,119 +241,167 @@ const onHealthTypeChange = (e: any) => {
 }
 
 const addRecord = async () => {
-  if (!selectedPetId.value || !healthType.value) {
+  if (!selectedPetInModal.value || !healthType.value) {
     uni.showToast({ title: '请填写完整信息', icon: 'none' })
     return
   }
   
-  addLocalData('health_records', {
-    pet_id: selectedPetId.value,
-    health_type: healthType.value,
-    weight: weight.value ? parseFloat(weight.value) : undefined,
-    temperature: temperature.value ? parseFloat(temperature.value) : undefined,
-    notes: notes.value
-  })
-  
-  uni.showToast({ title: '添加成功', icon: 'success' })
-  showAddModal.value = false
-  fetchRecords()
-  
-  // 重置表单
-  weight.value = ''
-  temperature.value = ''
-  notes.value = ''
-  healthType.value = ''
+  try {
+    const recordTypes: Record<string, string> = {
+      '体重': 'weight',
+      '体温': 'temperature',
+      '驱虫': 'deworming',
+      '疫苗': 'vaccine',
+      '生病': 'sick',
+      '其他': 'other'
+    }
+    
+    await post(`${supabaseUrl}/rest/v1/growth_records`, {
+      pet_id: selectedPetInModal.value.id,
+      record_type: recordTypes[healthType.value],
+      weight: weight.value ? parseFloat(weight.value) : null,
+      temperature: temperature.value ? parseFloat(temperature.value) : null,
+      notes: notes.value || null,
+      user_id: getDeviceId()
+    })
+    
+    uni.showToast({ title: '添加成功', icon: 'success' })
+    showAddModal.value = false
+    fetchRecords()
+    
+    // 重置表单
+    healthType.value = ''
+    weight.value = ''
+    temperature.value = ''
+    notes.value = ''
+  } catch (error) {
+    console.error('添加失败:', error)
+    uni.showToast({ title: '添加失败', icon: 'none' })
+  }
 }
 
 onMounted(() => {
   fetchPets()
-  fetchRecords()
 })
 </script>
 
 <style scoped>
 .container {
   min-height: 100vh;
-  background-color: #f5f5f5;
-  padding: 20px;
-  padding-bottom: 100px;
+  background: linear-gradient(180deg, #F9FAFB 0%, #EEF2FF 100%);
+  padding: 32rpx;
+  padding-bottom: 200rpx;
 }
 
-.header {
-  margin-bottom: 20px;
+.page-header {
+  margin-bottom: 32rpx;
 }
 
-.title {
-  font-size: 24px;
-  font-weight: bold;
-  color: #333;
+.page-title {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #1F2937;
   display: block;
 }
 
-.subtitle {
-  font-size: 14px;
-  color: #999;
-  margin-top: 4px;
+.page-desc {
+  font-size: 28rpx;
+  color: #6B7280;
+  margin-top: 8rpx;
   display: block;
 }
 
+/* 宠物选择 */
+.pet-select {
+  margin-bottom: 24rpx;
+}
+
+.pet-picker {
+  display: flex;
+  align-items: center;
+  background: #FFFFFF;
+  padding: 24rpx 28rpx;
+  border-radius: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+.pet-picker-label {
+  font-size: 28rpx;
+  color: #6B7280;
+}
+
+.pet-picker-value {
+  flex: 1;
+  font-size: 30rpx;
+  color: #8B5CF6;
+  font-weight: 500;
+  margin-left: 8rpx;
+}
+
+.pet-picker-arrow {
+  font-size: 32rpx;
+  color: #9CA3AF;
+}
+
+/* 健康卡片 */
 .health-cards {
   display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 16rpx;
+  margin-bottom: 32rpx;
 }
 
 .health-card {
   flex: 1;
-  background: white;
-  border-radius: 12px;
-  padding: 16px;
+  background: #FFFFFF;
+  border-radius: 20rpx;
+  padding: 24rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 
 .card-icon {
-  font-size: 24px;
-  margin-bottom: 8px;
+  font-size: 40rpx;
+  margin-bottom: 12rpx;
 }
 
 .card-value {
-  font-size: 20px;
-  font-weight: bold;
-  color: #333;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #1F2937;
 }
 
 .card-label {
-  font-size: 12px;
-  color: #999;
-  margin-top: 4px;
+  font-size: 24rpx;
+  color: #9CA3AF;
+  margin-top: 8rpx;
 }
 
 .section-title {
-  font-size: 18px;
-  font-weight: bold;
-  color: #333;
-  margin-bottom: 12px;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1F2937;
+  margin-bottom: 16rpx;
 }
 
 .record-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 12rpx;
 }
 
 .record-card {
-  background: white;
-  border-radius: 12px;
-  padding: 16px;
+  background: #FFFFFF;
+  border-radius: 16rpx;
+  padding: 24rpx;
   display: flex;
   align-items: center;
 }
 
 .record-icon {
-  font-size: 24px;
-  margin-right: 12px;
+  font-size: 40rpx;
+  margin-right: 16rpx;
 }
 
 .record-content {
@@ -329,61 +409,65 @@ onMounted(() => {
 }
 
 .record-title {
-  font-size: 16px;
-  color: #333;
+  font-size: 30rpx;
+  color: #1F2937;
   display: block;
 }
 
 .record-desc {
-  font-size: 14px;
-  color: #999;
-  margin-top: 4px;
+  font-size: 26rpx;
+  color: #9CA3AF;
+  margin-top: 4rpx;
   display: block;
 }
 
 .record-date {
-  font-size: 12px;
-  color: #ccc;
+  font-size: 24rpx;
+  color: #D1D5DB;
 }
 
+/* 空状态 */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 60px 20px;
+  padding: 80rpx 40rpx;
 }
 
-.empty-text {
-  font-size: 16px;
-  color: #999;
+.empty-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1F2937;
+  margin-bottom: 16rpx;
 }
 
-.empty-hint {
-  font-size: 14px;
-  color: #ccc;
-  margin-top: 8px;
+.empty-desc {
+  font-size: 28rpx;
+  color: #9CA3AF;
 }
 
+/* 悬浮按钮 */
 .fab {
   position: fixed;
-  right: 20px;
-  bottom: 40px;
-  width: 56px;
-  height: 56px;
-  background: #3cc51f;
+  right: 40rpx;
+  bottom: 56rpx;
+  width: 112rpx;
+  height: 112rpx;
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(60, 197, 31, 0.4);
+  box-shadow: 0 12rpx 32rpx rgba(139, 92, 246, 0.4);
 }
 
 .fab-icon {
-  font-size: 32px;
-  color: white;
-  line-height: 1;
+  font-size: 56rpx;
+  color: #FFFFFF;
+  font-weight: 300;
 }
 
+/* 弹窗 */
 .modal-mask {
   position: fixed;
   top: 0;
@@ -398,11 +482,11 @@ onMounted(() => {
 }
 
 .modal {
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
+  background: #FFFFFF;
+  border-radius: 32rpx;
+  padding: 40rpx;
   width: 80%;
-  max-width: 320px;
+  max-width: 600rpx;
   max-height: 80vh;
   overflow-y: auto;
 }
@@ -411,52 +495,56 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 32rpx;
 }
 
 .modal-title {
-  font-size: 18px;
-  font-weight: bold;
-  color: #333;
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1F2937;
 }
 
 .modal-close {
-  font-size: 24px;
-  color: #999;
+  font-size: 48rpx;
+  color: #9CA3AF;
 }
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 24rpx;
 }
 
 .label {
-  font-size: 14px;
-  color: #666;
+  font-size: 28rpx;
+  color: #6B7280;
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 12rpx;
 }
 
 .picker, .input, .textarea {
-  background: #f5f5f5;
-  border-radius: 8px;
-  padding: 12px;
-  font-size: 16px;
   width: 100%;
+  background: #F9FAFB;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  font-size: 30rpx;
   box-sizing: border-box;
 }
 
 .textarea {
-  min-height: 80px;
+  min-height: 120rpx;
 }
 
 .submit-btn {
-  background: #3cc51f;
-  color: white;
-  border: none;
-  padding: 14px;
-  border-radius: 25px;
-  font-size: 16px;
-  margin-top: 20px;
   width: 100%;
+  height: 96rpx;
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  border-radius: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin-top: 32rpx;
+  border: none;
 }
 </style>

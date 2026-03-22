@@ -4,9 +4,17 @@
     <view class="page-header">
       <view class="header-left">
         <text class="page-title">我的毛孩子</text>
-        <text class="page-desc">PetMind 宠物助手</text>
+        <text class="page-desc" v-if="isLoggedIn">欢迎回来，{{ deviceId.slice(0, 8) }}</text>
+        <text class="page-desc" v-else>点击登录同步数据</text>
       </view>
-      <view class="header-icon">🐾</view>
+      <view class="header-right">
+        <view class="login-btn" @click="handleLogin" v-if="!isLoggedIn">
+          <text>登录</text>
+        </view>
+        <view class="user-avatar" v-else>
+          <text>🐾</text>
+        </view>
+      </view>
     </view>
 
     <!-- 宠物列表 -->
@@ -64,7 +72,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { supabaseUrl, supabaseAnonKey, get } from '@/utils/supabase'
+import { supabaseUrl, get, getDeviceId } from '@/utils/supabase'
 
 interface Pet {
   id: string
@@ -76,7 +84,8 @@ interface Pet {
 }
 
 const pets = ref<Pet[]>([])
-const loading = ref(true)
+const deviceId = ref('')
+const isLoggedIn = ref(false)
 
 // 宠物类型 Emoji
 const getTypeEmoji = (type: string) => {
@@ -105,24 +114,24 @@ const calculateAge = (birthDate: string) => {
   return `${years}岁`
 }
 
+// 登录/获取设备ID
+const handleLogin = () => {
+  deviceId.value = getDeviceId()
+  isLoggedIn.value = true
+  uni.showToast({ title: '已登录', icon: 'success' })
+  fetchPets()
+}
+
 // 获取宠物列表
 const fetchPets = async () => {
-  loading.value = true
   try {
-    const deviceId = uni.getStorageSync('deviceId') || ''
-    
-    let url = `${supabaseUrl}/rest/v1/pets?select=*&order=created_at.desc`
-    if (deviceId) {
-      url += `&user_id=eq.${deviceId}`
-    }
-    
+    const userId = getDeviceId()
+    const url = `${supabaseUrl}/rest/v1/pets?select=*&user_id=eq.${userId}&order=created_at.desc`
     const data = await get(url)
     pets.value = data || []
   } catch (error) {
     console.error('获取宠物列表失败:', error)
     uni.showToast({ title: '获取失败', icon: 'none' })
-  } finally {
-    loading.value = false
   }
 }
 
@@ -141,6 +150,8 @@ const addPet = () => {
 }
 
 onMounted(() => {
+  deviceId.value = getDeviceId()
+  isLoggedIn.value = !!deviceId.value
   fetchPets()
 })
 </script>
@@ -175,8 +186,28 @@ onMounted(() => {
   display: block;
 }
 
-.header-icon {
-  font-size: 80rpx;
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.login-btn {
+  padding: 16rpx 32rpx;
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  color: #FFFFFF;
+}
+
+.user-avatar {
+  width: 80rpx;
+  height: 80rpx;
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
 }
 
 /* 宠物列表 */
@@ -198,7 +229,6 @@ onMounted(() => {
 
 .pet-card:active {
   transform: scale(0.98);
-  box-shadow: 0 2rpx 12rpx rgba(139, 92, 246, 0.06);
 }
 
 /* 宠物头像 */

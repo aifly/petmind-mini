@@ -143,7 +143,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { supabaseUrl, supabaseAnonKey, post } from '@/utils/supabase'
+import { supabaseUrl, post, getDeviceId } from '@/utils/supabase'
 
 const petTypes = [
   { id: 'dog', name: '🐕 狗狗', emoji: '🐕' },
@@ -206,14 +206,9 @@ const submitPet = async () => {
   loading.value = true
 
   try {
-    // 生成设备标识
-    let deviceId = uni.getStorageSync('deviceId')
-    if (!deviceId) {
-      deviceId = 'device_' + Date.now()
-      uni.setStorageSync('deviceId', deviceId)
-    }
+    const userId = getDeviceId()
 
-    const data = await post(`${supabaseUrl}/rest/v1/pets`, {
+    await post(`${supabaseUrl}/rest/v1/pets`, {
       name: pet.value.name.trim(),
       type: pet.value.type,
       breed: pet.value.breed || null,
@@ -221,7 +216,7 @@ const submitPet = async () => {
       birth_date: pet.value.birth_date || null,
       weight: pet.value.weight ? parseFloat(pet.value.weight) : null,
       notes: pet.value.notes || null,
-      user_id: deviceId,
+      user_id: userId,
       photo_url: pet.value.avatar || null
     })
 
