@@ -1,4 +1,5 @@
 {
-  "navigationBarTitleText": "宠物中心",
+  "navigationBarTitleText": "PetMind",
+  "navigationStyle": "custom",
   "usingComponents": {}
 }
