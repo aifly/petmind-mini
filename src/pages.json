@@ -80,10 +80,6 @@
         "text": "日历"
       },
       {
-        "pagePath": "pages/photo/photo",
-        "text": "相册"
-      },
-      {
         "pagePath": "pages/settings/settings",
         "text": "我的"
       }
