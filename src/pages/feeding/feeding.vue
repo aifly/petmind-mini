@@ -5,20 +5,28 @@
       <text class="subtitle">记录每一次喂养</text>
     </view>
 
+    <!-- 加载状态 -->
+    <view v-if="loading" class="loading">
+      <text>加载中...</text>
+    </view>
+
     <!-- 喂养记录列表 -->
-    <view class="record-list" v-if="records.length > 0">
+    <view class="record-list" v-else-if="records.length > 0">
       <view 
         class="record-card" 
         v-for="record in records" 
         :key="record.id"
       >
-        <view class="record-time">
-          <text class="time">{{ formatTime(record.created_at) }}</text>
-          <text class="date">{{ formatDate(record.created_at) }}</text>
+        <view class="record-icon">
+          <text>{{ getFoodIcon(record.food_type) }}</text>
         </view>
         <view class="record-content">
           <text class="food-type">{{ record.food_type || '狗粮' }}</text>
+          <text class="pet-name">{{ getPetName(record.pet_id) }}</text>
+        </view>
+        <view class="record-right">
           <text class="amount">{{ record.amount || 100 }}g</text>
+          <text class="time">{{ formatTime(record.created_at) }}</text>
         </view>
       </view>
     </view>
@@ -45,12 +53,12 @@
         <view class="form-group">
           <text class="label">宠物</text>
           <picker 
-            :range="petOptions" 
+            :range="pets" 
             range-key="name"
             @change="onPetChange"
           >
             <view class="picker">
-              <text>{{ selectedPetName || '请选择宠物' }}</text>
+              <text>{{ selectedPet?.name || '请选择宠物' }}</text>
             </view>
           </picker>
         </view>
@@ -90,6 +98,7 @@ import { supabaseUrl, supabaseAnonKey } from '@/utils/supabase'
 interface Record {
   id: string
   pet_id: string
+  pet_name?: string
   food_type: string
   amount: number
   created_at: string
@@ -102,31 +111,44 @@ interface Pet {
 
 const records = ref<Record[]>([])
 const pets = ref<Pet[]>([])
+const loading = ref(true)
 const showAddModal = ref(false)
 const selectedPetId = ref('')
 const foodType = ref('')
 const amount = ref('')
 
 const foodTypes = ['狗粮', '猫粮', '零食', '罐头', '营养膏', '其他']
-const petOptions = computed(() => pets.value)
-const selectedPetName = computed(() => {
-  const pet = pets.value.find(p => p.id === selectedPetId.value)
-  return pet?.name || ''
+
+const selectedPet = computed(() => {
+  return pets.value.find(p => p.id === selectedPetId.value)
 })
 
-const formatTime = (dateStr: string) => {
-  const date = new Date(dateStr)
-  return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+const getFoodIcon = (type: string) => {
+  const icons: Record<string, string> = {
+    '狗粮': '🍖',
+    '猫粮': '🐟',
+    '零食': '🍪',
+    '罐头': '🥫',
+    '营养膏': '💊',
+    '其他': '🍽️'
+  }
+  return icons[type] || '🍽️'
 }
 
-const formatDate = (dateStr: string) => {
+const getPetName = (petId: string) => {
+  const pet = pets.value.find(p => p.id === petId)
+  return pet?.name || ''
+}
+
+const formatTime = (dateStr: string) => {
+  if (!dateStr) return ''
   const date = new Date(dateStr)
-  return `${date.getMonth() + 1}月${date.getDate()}日`
+  return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
 }
 
 const fetchPets = async () => {
   try {
-    const response = await fetch(`${supabaseUrl}/rest/v1/pets?select=id,name`, {
+    const response = await fetch(`${supabaseUrl}/rest/v1/pets?select=id,name&order=created_at.desc`, {
       headers: {
         'apikey': supabaseAnonKey,
         'Authorization': `Bearer ${supabaseAnonKey}`
@@ -142,9 +164,12 @@ const fetchPets = async () => {
 }
 
 const fetchRecords = async () => {
+  loading.value = true
   try {
+    const deviceId = uni.getStorageSync('deviceId') || 'anonymous'
+    
     const response = await fetch(
-      `${supabaseUrl}/rest/v1/feeding_records?select=*&order=created_at.desc&limit=20`,
+      `${supabaseUrl}/rest/v1/growth_records?pet_id=eq.${deviceId}&or=(pet_id.null,pet_id.not.is.null)&order=created_at.desc&limit=50`,
       {
         headers: {
           'apikey': supabaseAnonKey,
@@ -152,14 +177,30 @@ const fetchRecords = async () => {
         }
       }
     )
-    records.value = await response.json()
+    
+    if (response.ok) {
+      records.value = await response.json()
+      
+      // 如果没有数据，显示所有记录（不限制 pet_id）
+      if (records.value.length === 0) {
+        const allResponse = await fetch(
+          `${supabaseUrl}/rest/v1/growth_records?record_type=eq.喂养&order=created_at.desc&limit=20`,
+          {
+            headers: {
+              'apikey': supabaseAnonKey,
+              'Authorization': `Bearer ${supabaseAnonKey}`
+            }
+          }
+        )
+        if (allResponse.ok) {
+          records.value = await allResponse.json()
+        }
+      }
+    }
   } catch (error) {
     console.error('获取记录失败:', error)
-    // 使用本地模拟数据
-    records.value = [
-      { id: '1', pet_id: '1', food_type: '狗粮', amount: 100, created_at: new Date().toISOString() },
-      { id: '2', pet_id: '1', food_type: '零食', amount: 50, created_at: new Date(Date.now() - 3600000).toISOString() }
-    ]
+  } finally {
+    loading.value = false
   }
 }
 
@@ -177,8 +218,12 @@ const addRecord = async () => {
     return
   }
   
+  uni.showLoading({ title: '保存中...' })
+  
   try {
-    const response = await fetch(`${supabaseUrl}/rest/v1/feeding_records`, {
+    const deviceId = uni.getStorageSync('deviceId') || 'anonymous'
+    
+    const response = await fetch(`${supabaseUrl}/rest/v1/growth_records`, {
       method: 'POST',
       headers: {
         'apikey': supabaseAnonKey,
@@ -188,31 +233,28 @@ const addRecord = async () => {
       },
       body: JSON.stringify({
         pet_id: selectedPetId.value,
+        record_type: '喂养',
         food_type: foodType.value || '狗粮',
-        amount: parseInt(amount.value) || 100
+        amount: parseInt(amount.value) || 100,
+        notes: '',
+        user_id: deviceId
       })
     })
     
     if (response.ok) {
       uni.showToast({ title: '添加成功', icon: 'success' })
       showAddModal.value = false
+      amount.value = ''
       fetchRecords()
+    } else {
+      throw new Error('添加失败')
     }
   } catch (error) {
     console.error('添加失败:', error)
-    // 本地模拟添加成功
-    records.value.unshift({
-      id: Date.now().toString(),
-      pet_id: selectedPetId.value,
-      food_type: foodType.value || '狗粮',
-      amount: parseInt(amount.value) || 100,
-      created_at: new Date().toISOString()
-    })
-    uni.showToast({ title: '添加成功', icon: 'success' })
-    showAddModal.value = false
+    uni.showToast({ title: '添加失败', icon: 'none' })
+  } finally {
+    uni.hideLoading()
   }
-  
-  amount.value = ''
 }
 
 onMounted(() => {
@@ -247,6 +289,12 @@ onMounted(() => {
   display: block;
 }
 
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+}
+
 .record-list {
   display: flex;
   flex-direction: column;
@@ -258,42 +306,47 @@ onMounted(() => {
   border-radius: 12px;
   padding: 16px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
 }
 
-.record-time {
-  display: flex;
-  flex-direction: column;
-}
-
-.time {
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-}
-
-.date {
-  font-size: 12px;
-  color: #999;
-  margin-top: 4px;
+.record-icon {
+  font-size: 28px;
+  margin-right: 12px;
 }
 
 .record-content {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex: 1;
 }
 
 .food-type {
   font-size: 16px;
-  color: #666;
+  font-weight: 600;
+  color: #333;
+  display: block;
+}
+
+.pet-name {
+  font-size: 14px;
+  color: #999;
+  margin-top: 4px;
+  display: block;
+}
+
+.record-right {
+  text-align: right;
 }
 
 .amount {
-  font-size: 14px;
+  font-size: 16px;
   color: #3cc51f;
+  display: block;
+}
+
+.time {
+  font-size: 12px;
+  color: #ccc;
   margin-top: 4px;
+  display: block;
 }
 
 .empty-state {

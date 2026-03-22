@@ -16,12 +16,12 @@
       >
         <image 
           class="pet-avatar" 
-          :src="pet.avatar_url || '/static/default-pet.png'" 
+          :src="pet.photo_url || '/static/default-pet.png'" 
           mode="aspectFill"
         />
         <view class="pet-info">
           <text class="pet-name">{{ pet.name }}</text>
-          <text class="pet-breed">{{ pet.breed || '未知品种' }}</text>
+          <text class="pet-breed">{{ pet.breed || getTypeName(pet.type) }}</text>
         </view>
         <text class="pet-age">{{ calculateAge(pet.birth_date) }}</text>
       </view>
@@ -48,13 +48,31 @@ import { supabaseUrl, supabaseAnonKey } from '@/utils/supabase'
 interface Pet {
   id: string
   name: string
-  species: string
+  type: string
   breed: string
   birth_date: string
-  avatar_url: string
+  photo_url: string
+  gender: string
+  weight: number
+  notes: string
 }
 
 const pets = ref<Pet[]>([])
+const loading = ref(true)
+
+// 宠物类型映射
+const getTypeName = (type: string) => {
+  const types: Record<string, string> = {
+    'dog': '狗狗',
+    'cat': '猫咪',
+    'bird': '鸟类',
+    'rabbit': '兔子',
+    'hamster': '仓鼠',
+    'fish': '鱼类',
+    'other': '其他'
+  }
+  return types[type] || '宠物'
+}
 
 // 计算宠物年龄
 const calculateAge = (birthDate: string) => {
@@ -71,29 +89,37 @@ const calculateAge = (birthDate: string) => {
 
 // 获取宠物列表
 const fetchPets = async () => {
+  loading.value = true
   try {
-    const response = await fetch(`${supabaseUrl}/rest/v1/pets?select=*`, {
+    const response = await fetch(`${supabaseUrl}/rest/v1/pets?select=*&order=created_at.desc`, {
       headers: {
         'apikey': supabaseAnonKey,
         'Authorization': `Bearer ${supabaseAnonKey}`
       }
     })
-    const data = await response.json()
-    pets.value = data || []
+    
+    if (response.ok) {
+      const data = await response.json()
+      pets.value = data || []
+    }
   } catch (error) {
     console.error('获取宠物列表失败:', error)
+  } finally {
+    loading.value = false
   }
 }
 
-// 跳转到宠物详情
+// 跳转到宠物详情（预留）
 const goToPetDetail = (petId: string) => {
-  uni.navigateTo({
-    url: `/pages/pet-detail/pet-detail?id=${petId}`
+  uni.showToast({
+    title: '功能开发中',
+    icon: 'none'
   })
 }
 
 // 添加宠物
 const addPet = () => {
+  // 跳转到添加宠物页面
   uni.navigateTo({
     url: '/pages/pet-add/pet-add'
   })
@@ -101,6 +127,11 @@ const addPet = () => {
 
 onMounted(() => {
   fetchPets()
+  
+  // 监听页面显示，刷新数据
+  uni.onAppRoute(() => {
+    fetchPets()
+  })
 })
 </script>
 

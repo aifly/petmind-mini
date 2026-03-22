@@ -7,6 +7,18 @@
       }
     },
     {
+      "path": "pages/pet-add/pet-add",
+      "style": {
+        "navigationBarTitleText": "添加宠物"
+      }
+    },
+    {
+      "path": "pages/pet-detail/pet-detail",
+      "style": {
+        "navigationBarTitleText": "宠物详情"
+      }
+    },
+    {
       "path": "pages/feeding/feeding",
       "style": {
         "navigationBarTitleText": "喂养记录"
@@ -44,9 +56,9 @@
     "backgroundColor": "#F8F8F8"
   },
   "tabBar": {
-    "color": "#7A7E83",
-    "selectedColor": "#3cc51f",
-    "borderStyle": "black",
+    "color": "#888888",
+    "selectedColor": "#FF1493",
+    "borderStyle": "white",
     "backgroundColor": "#ffffff",
     "list": [
       {
@@ -74,14 +86,8 @@
         "selectedIconPath": "static/tabbar/calendar-active.png"
       },
       {
-        "pagePath": "pages/photo/photo",
-        "text": "相册",
-        "iconPath": "static/tabbar/photo.png",
-        "selectedIconPath": "static/tabbar/photo-active.png"
-      },
-      {
         "pagePath": "pages/settings/settings",
-        "text": "设置",
+        "text": "我的",
         "iconPath": "static/tabbar/settings.png",
         "selectedIconPath": "static/tabbar/settings-active.png"
       }

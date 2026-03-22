@@ -127,7 +127,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { supabaseUrl, supabaseAnonKey } from '@/utils/supabase'
+import { getLocalData, addLocalData, initMockData } from '@/utils/localData'
 
 interface Record {
   id: string
@@ -189,42 +189,15 @@ const getHealthTypeName = (type: string) => {
 }
 
 const fetchPets = async () => {
-  try {
-    const response = await fetch(`${supabaseUrl}/rest/v1/pets?select=id,name`, {
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`
-      }
-    })
-    pets.value = await response.json()
-    if (pets.value.length > 0) {
-      selectedPetId.value = pets.value[0].id
-    }
-  } catch (error) {
-    console.error('获取宠物失败:', error)
+  initMockData()
+  pets.value = getLocalData('pets')
+  if (pets.value.length > 0) {
+    selectedPetId.value = pets.value[0].id
   }
 }
 
 const fetchRecords = async () => {
-  try {
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/health_records?select=*&order=created_at.desc&limit=20`,
-      {
-        headers: {
-          'apikey': supabaseAnonKey,
-          'Authorization': `Bearer ${supabaseAnonKey}`
-        }
-      }
-    )
-    records.value = await response.json()
-  } catch (error) {
-    console.error('获取记录失败:', error)
-    // 模拟数据
-    records.value = [
-      { id: '1', pet_id: '1', health_type: '体重', weight: 5.5, notes: '体重稳定', created_at: new Date().toISOString() },
-      { id: '2', pet_id: '1', health_type: '体温', temperature: 38.5, notes: '体温正常', created_at: new Date(Date.now() - 86400000).toISOString() }
-    ]
-  }
+  records.value = getLocalData('health_records')
 }
 
 const onPetChange = (e: any) => {
@@ -241,19 +214,17 @@ const addRecord = async () => {
     return
   }
   
-  // 本地模拟添加成功
-  records.value.unshift({
-    id: Date.now().toString(),
+  addLocalData('health_records', {
     pet_id: selectedPetId.value,
     health_type: healthType.value,
     weight: weight.value ? parseFloat(weight.value) : undefined,
     temperature: temperature.value ? parseFloat(temperature.value) : undefined,
-    notes: notes.value,
-    created_at: new Date().toISOString()
+    notes: notes.value
   })
   
   uni.showToast({ title: '添加成功', icon: 'success' })
   showAddModal.value = false
+  fetchRecords()
   
   // 重置表单
   weight.value = ''
