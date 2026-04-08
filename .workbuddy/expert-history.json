@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "sessions": {
+    "349d1a1dd96f4095aa27c8fed95bc873": [
+      {
+        "expertId": "FrontendDeveloper",
+        "name": "Paul",
+        "profession": "前端开发工程师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/02-Engineering/FrontendDeveloper/FrontendDeveloper.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/02-Engineering/FrontendDeveloper/FrontendDeveloper_zh.md",
+        "usedAt": 1774948977744,
+        "industryId": "02-Engineering"
+      },
+      {
+        "expertId": "UiDesigner",
+        "name": "Sam",
+        "profession": "UI设计师",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/01-Design/UiDesigner/UiDesigner.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/01-Design/UiDesigner/UiDesigner_zh.md",
+        "usedAt": 1774924592601,
+        "industryId": "01-Design"
+      },
+      {
+        "expertId": "SprintPriorityManager",
+        "name": "Yuri",
+        "profession": "迭代优先级管理者",
+        "avatarUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/avatars/06-Product/SprintPriorityManager/SprintPriorityManager.png",
+        "promptUrl": "https://acc-1258344699.cos.accelerate.myqcloud.com/workbuddy/experts/experts/06-Product/SprintPriorityManager/SprintPriorityManager_zh.md",
+        "usedAt": 1774920069043,
+        "industryId": "06-Product"
+      }
+    ]
+  },
+  "lastUpdated": 1774959560284
+}

@@ -1,550 +1,721 @@
 <template>
-  <view class="container">
-    <!-- 页面标题 -->
-    <view class="page-header">
-      <text class="page-title">健康记录</text>
-      <text class="page-desc">关注宠物健康每一天</text>
-    </view>
-
-    <!-- 宠物选择 -->
-    <view class="pet-select" v-if="pets.length > 0">
-      <picker 
-        :range="pets" 
-        range-key="name"
-        @change="onPetChange"
-      >
-        <view class="pet-picker">
-          <text class="pet-picker-label">当前宠物：</text>
-          <text class="pet-picker-value">{{ selectedPet?.name || '请选择' }}</text>
-          <text class="pet-picker-arrow">›</text>
+  <view class="health-page">
+    <!-- 头部 -->
+    <view class="header">
+      <view class="header-bg"></view>
+      <view class="header-content">
+        <view class="back-btn" @click="goBack">
+          <text class="back-icon">‹</text>
         </view>
-      </picker>
-    </view>
-
-    <!-- 健康数据卡片 -->
-    <view class="health-cards" v-if="selectedPet">
-      <view class="health-card">
-        <text class="card-icon">⚖️</text>
-        <text class="card-value">{{ latestWeight || '--' }} kg</text>
-        <text class="card-label">体重</text>
-      </view>
-      <view class="health-card">
-        <text class="card-icon">🌡️</text>
-        <text class="card-value">{{ latestTemp || '--' }} °C</text>
-        <text class="card-label">体温</text>
-      </view>
-      <view class="health-card">
-        <text class="card-icon">💩</text>
-        <text class="card-value">正常</text>
-        <text class="card-label">排便</text>
+        <text class="header-title">健康急救箱</text>
+        <view class="header-placeholder"></view>
       </view>
     </view>
 
-    <!-- 健康记录列表 -->
-    <view class="section-title" v-if="records.length > 0">
-      <text>记录详情</text>
-    </view>
-
-    <view class="record-list" v-if="records.length > 0">
-      <view 
-        class="record-card" 
-        v-for="record in records" 
-        :key="record.id"
-      >
-        <view class="record-icon">
-          <text>{{ getHealthIcon(record.record_type) }}</text>
-        </view>
-        <view class="record-content">
-          <text class="record-title">{{ getHealthTypeName(record.record_type) }}</text>
-          <text class="record-desc" v-if="record.notes">{{ record.notes }}</text>
-        </view>
-        <text class="record-date">{{ formatDate(record.created_at) }}</text>
-      </view>
-    </view>
-
-    <!-- 空状态 -->
-    <view class="empty-state" v-else>
-      <text class="empty-title">暂无健康记录</text>
-      <text class="empty-desc">点击下方按钮添加记录</text>
-    </view>
-
-    <!-- 添加记录悬浮按钮 -->
-    <view class="fab" @click="showAddModal = true" v-if="pets.length > 0">
-      <text class="fab-icon">+</text>
-    </view>
-
-    <!-- 添加记录弹窗 -->
-    <view class="modal-mask" v-if="showAddModal" @click="showAddModal = false">
-      <view class="modal" @click.stop>
-        <view class="modal-header">
-          <text class="modal-title">添加健康记录</text>
-          <text class="modal-close" @click="showAddModal = false">×</text>
-        </view>
-        
-        <view class="form-group">
-          <text class="label">宠物</text>
-          <picker 
-            :range="pets" 
-            range-key="name"
-            @change="onModalPetChange"
+    <!-- 输入表单 -->
+    <view v-if="!isLoading && !showResult" class="form-body">
+      <!-- 宠物类型选择 -->
+      <view class="form-section">
+        <text class="section-label">选择宠物类型</text>
+        <view class="pet-type-grid">
+          <view 
+            class="pet-type-chip" 
+            :class="{ active: petType === 'cat' }"
+            @click="petType = 'cat'"
           >
-            <view class="picker">
-              <text>{{ selectedPetInModal?.name || '请选择宠物' }}</text>
-            </view>
-          </picker>
-        </view>
-
-        <view class="form-group">
-          <text class="label">记录类型</text>
-          <picker 
-            :range="healthTypes" 
-            @change="onHealthTypeChange"
+            <text class="type-emoji">🐱</text>
+            <text class="type-label">猫咪</text>
+          </view>
+          <view 
+            class="pet-type-chip" 
+            :class="{ active: petType === 'dog' }"
+            @click="petType = 'dog'"
           >
-            <view class="picker">
-              <text>{{ healthType || '请选择类型' }}</text>
-            </view>
-          </picker>
+            <text class="type-emoji">🐶</text>
+            <text class="type-label">狗狗</text>
+          </view>
+          <view 
+            class="pet-type-chip" 
+            :class="{ active: petType === 'other' }"
+            @click="petType = 'other'"
+          >
+            <text class="type-emoji">🐰</text>
+            <text class="type-label">其他</text>
+          </view>
         </view>
+      </view>
 
-        <view class="form-group" v-if="healthType === '体重'">
-          <text class="label">体重 (kg)</text>
-          <input class="input" type="digit" v-model="weight" placeholder="请输入体重" />
+      <!-- 症状描述 -->
+      <view class="form-section">
+        <text class="section-label">描述症状</text>
+        <view class="input-area">
+          <textarea
+            v-model="symptomText"
+            class="symptom-input"
+            placeholder="例如：最近两天食欲不好，精神萎靡，偶尔呕吐..."
+            maxlength="500"
+          />
+          <text class="input-count">{{ symptomText.length }}/500</text>
         </view>
+      </view>
 
-        <view class="form-group" v-if="healthType === '体温'">
-          <text class="label">体温 (°C)</text>
-          <input class="input" type="digit" v-model="temperature" placeholder="请输入体温" />
+      <!-- 免责声明 -->
+      <view class="disclaimer-box">
+        <text class="disc-icon">⚠️</text>
+        <text class="disc-text">AI 建议仅供参考，不能替代专业兽医诊断。紧急情况请立即就医！</text>
+      </view>
+
+      <!-- 提交按钮 -->
+      <button 
+        class="submit-btn" 
+        :disabled="!canSubmit"
+        :class="{ disabled: !canSubmit }"
+        @click="handleSubmit"
+      >
+        开始分析
+      </button>
+    </view>
+
+    <!-- 加载状态 -->
+    <view v-if="isLoading" class="loading-body">
+      <view class="health-orb">🩺</view>
+      <text class="loading-title">AI 正在分析...</text>
+      <text class="loading-desc">请稍候，正在评估症状</text>
+      <view class="loading-steps">
+        <view class="loading-step" :class="{ done: step >= 1, active: step === 0 }">
+          <view class="step-dot"></view>
+          <text>分析症状描述</text>
         </view>
-
-        <view class="form-group">
-          <text class="label">备注</text>
-          <textarea class="textarea" v-model="notes" placeholder="请输入备注" />
+        <view class="loading-step" :class="{ done: step >= 2, active: step === 1 }">
+          <view class="step-dot"></view>
+          <text>匹配可能原因</text>
         </view>
+        <view class="loading-step" :class="{ done: step >= 3, active: step === 2 }">
+          <view class="step-dot"></view>
+          <text>生成建议方案</text>
+        </view>
+      </view>
+    </view>
 
-        <button class="submit-btn" @click="addRecord">保存</button>
+    <!-- 结果页 -->
+    <view v-if="showResult" class="result-body">
+      <!-- 紧急度横幅 -->
+      <view class="urgency-banner" :class="result.urgency">
+        <text class="urgency-icon">{{ urgencyIcon }}</text>
+        <view class="urgency-text">
+          <text class="urgency-level" :class="result.urgency">{{ urgencyText }}</text>
+          <text class="urgency-desc">{{ urgencyDesc }}</text>
+        </view>
+      </view>
+
+      <!-- 可能原因 -->
+      <view class="result-section">
+        <text class="section-title">🔍 可能原因</text>
+        <view v-for="(cause, index) in result.causes" :key="index" class="cause-item">
+          <view class="cause-rank">{{ index + 1 }}</view>
+          <view class="cause-content">
+            <text class="cause-name">{{ cause.name }}</text>
+            <text class="cause-desc">{{ cause.desc }}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 建议措施 -->
+      <view class="result-section">
+        <text class="section-title">💡 建议措施</text>
+        <view class="advice-list">
+          <view v-for="(advice, index) in result.advice" :key="index" class="advice-item">
+            <text class="advice-bullet">•</text>
+            <text class="advice-text">{{ advice }}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 安慰卡片 -->
+      <view class="comfort-card">
+        <text class="comfort-text">{{ result.comfort }}</text>
+      </view>
+
+      <!-- 底部免责声明 -->
+      <view class="disclaimer-banner">
+        <text>⚠️</text>
+        <text>以上建议仅供参考，不能替代专业兽医诊断。如症状持续或加重，请立即就医。</text>
+      </view>
+
+      <!-- 底部按钮 -->
+      <view class="result-actions">
+        <button class="btn-primary" @click="resetForm">再测一次</button>
+        <button class="btn-secondary" @click="goBack">返回首页</button>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { supabaseUrl, get, post, getDeviceId } from '@/utils/supabase'
+import { ref, computed } from 'vue'
 
-interface Pet {
-  id: string
-  name: string
-}
+const petType = ref<'cat' | 'dog' | 'other'>('cat')
+const symptomText = ref('')
+const isLoading = ref(false)
+const showResult = ref(false)
+const step = ref(0)
 
-interface Record {
-  id: string
-  pet_id: string
-  record_type: string
-  weight?: number
-  temperature?: number
-  notes?: string
-  created_at: string
-}
+const canSubmit = computed(() => symptomText.value.trim().length >= 10)
 
-const pets = ref<Pet[]>([])
-const records = ref<Record[]>([])
-const selectedPet = ref<Pet | null>(null)
-const selectedPetInModal = ref<Pet | null>(null)
-const showAddModal = ref(false)
-const healthType = ref('')
-const weight = ref('')
-const temperature = ref('')
-const notes = ref('')
-const latestWeight = ref('--')
-const latestTemp = ref('--')
-
-const healthTypes = ['体重', '体温', '驱虫', '疫苗', '生病', '其他']
-
-// 获取健康图标
-const getHealthIcon = (type?: string) => {
-  const icons: Record<string, string> = {
-    'weight': '⚖️',
-    'temperature': '🌡️',
-    'deworming': '💊',
-    'vaccine': '💉',
-    'sick': '🤒',
-    'other': '📝'
-  }
-  return icons[type || ''] || '📝'
-}
-
-const getHealthTypeName = (type?: string) => {
-  const names: Record<string, string> = {
-    'weight': '体重记录',
-    'temperature': '体温记录',
-    'deworming': '驱虫',
-    'vaccine': '疫苗',
-    'sick': '生病',
-    'feeding': '喂养',
-    'other': '其他'
-  }
-  return names[type || ''] || '健康记录'
-}
-
-const formatDate = (dateStr: string) => {
-  const date = new Date(dateStr)
-  return `${date.getMonth() + 1}/${date.getDate()}`
-}
-
-// 获取宠物列表
-const fetchPets = async () => {
-  try {
-    const userId = getDeviceId()
-    const url = `${supabaseUrl}/rest/v1/pets?select=id,name&user_id=eq.${userId}`
-    const data = await get(url)
-    pets.value = data || []
-    if (pets.value.length > 0 && !selectedPet.value) {
-      selectedPet.value = pets.value[0]
-      selectedPetInModal.value = pets.value[0]
-      fetchRecords()
-    }
-  } catch (error) {
-    console.error('获取宠物失败:', error)
-  }
-}
-
-// 获取健康记录
-const fetchRecords = async () => {
-  if (!selectedPet.value) return
-  try {
-    // 获取体重和体温记录
-    const url = `${supabaseUrl}/rest/v1/growth_records?select=*&pet_id=eq.${selectedPet.value.id}&order=created_at.desc&limit=20`
-    const data = await get(url)
-    records.value = data || []
-    
-    // 计算最新体重和体温
-    const weightRecord = records.value.find(r => r.record_type === 'weight')
-    const tempRecord = records.value.find(r => r.record_type === 'temperature')
-    latestWeight.value = weightRecord?.weight?.toString() || '--'
-    latestTemp.value = tempRecord?.temperature?.toString() || '--'
-  } catch (error) {
-    console.error('获取记录失败:', error)
-  }
-}
-
-const onPetChange = (e: any) => {
-  selectedPet.value = pets.value[e.detail.value]
-  fetchRecords()
-}
-
-const onModalPetChange = (e: any) => {
-  selectedPetInModal.value = pets.value[e.detail.value]
-}
-
-const onHealthTypeChange = (e: any) => {
-  healthType.value = healthTypes[e.detail.value]
-}
-
-const addRecord = async () => {
-  if (!selectedPetInModal.value || !healthType.value) {
-    uni.showToast({ title: '请填写完整信息', icon: 'none' })
-    return
-  }
-  
-  try {
-    const recordTypes: Record<string, string> = {
-      '体重': 'weight',
-      '体温': 'temperature',
-      '驱虫': 'deworming',
-      '疫苗': 'vaccine',
-      '生病': 'sick',
-      '其他': 'other'
-    }
-    
-    await post(`${supabaseUrl}/rest/v1/growth_records`, {
-      pet_id: selectedPetInModal.value.id,
-      record_type: recordTypes[healthType.value],
-      weight: weight.value ? parseFloat(weight.value) : null,
-      temperature: temperature.value ? parseFloat(temperature.value) : null,
-      notes: notes.value || null,
-      user_id: getDeviceId()
-    })
-    
-    uni.showToast({ title: '添加成功', icon: 'success' })
-    showAddModal.value = false
-    fetchRecords()
-    
-    // 重置表单
-    healthType.value = ''
-    weight.value = ''
-    temperature.value = ''
-    notes.value = ''
-  } catch (error) {
-    console.error('添加失败:', error)
-    uni.showToast({ title: '添加失败', icon: 'none' })
-  }
-}
-
-onMounted(() => {
-  fetchPets()
+const urgencyIcon = computed(() => {
+  const map: Record<string, string> = { low: '✅', medium: '⚠️', high: '🚨' }
+  return map[result.value.urgency] || '⚠️'
 })
+
+const urgencyText = computed(() => {
+  const map: Record<string, string> = { low: '风险较低', medium: '需要关注', high: '建议尽快就医' }
+  return map[result.value.urgency] || '需要关注'
+})
+
+const urgencyDesc = computed(() => {
+  const map: Record<string, string> = {
+    low: '症状看起来不严重，可先观察',
+    medium: '建议密切观察，必要时咨询兽医',
+    high: '症状较严重，建议尽快就医检查'
+  }
+  return map[result.value.urgency] || '建议密切观察'
+})
+
+// 模拟结果数据
+const result = ref({
+  urgency: 'medium' as 'low' | 'medium' | 'high',
+  causes: [
+    { name: '消化不良', desc: '可能因饮食变化或进食过快引起' },
+    { name: '轻度肠胃炎', desc: '常见于换季或应激反应' },
+    { name: '寄生虫感染', desc: '建议定期驱虫，观察粪便情况' }
+  ],
+  advice: [
+    '暂停喂食12小时，让肠胃休息',
+    '提供充足的清水，防止脱水',
+    '观察呕吐频率和粪便状态',
+    '如24小时内无好转，请就医'
+  ],
+  comfort: '别太担心，很多小毛病都能自愈。保持观察，有问题及时就医，你是个负责任的铲屎官！💪'
+})
+
+const handleSubmit = async () => {
+  if (!canSubmit.value) return
+  
+  isLoading.value = true
+  showResult.value = false
+  step.value = 0
+
+  // 模拟步骤动画
+  const steps = [0, 1, 2]
+  for (const s of steps) {
+    await new Promise(r => setTimeout(r, 800))
+    step.value = s + 1
+  }
+
+  await new Promise(r => setTimeout(r, 500))
+  isLoading.value = false
+  showResult.value = true
+}
+
+const resetForm = () => {
+  symptomText.value = ''
+  showResult.value = false
+  step.value = 0
+}
+
+const goBack = () => {
+  uni.switchTab({ url: '/pages/index/index' })
+}
 </script>
 
 <style scoped>
-.container {
+.health-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #F9FAFB 0%, #EEF2FF 100%);
-  padding: 32rpx;
-  padding-bottom: 200rpx;
-}
-
-.page-header {
-  margin-bottom: 32rpx;
-}
-
-.page-title {
-  font-size: 48rpx;
-  font-weight: 700;
-  color: #1F2937;
-  display: block;
-}
-
-.page-desc {
-  font-size: 28rpx;
-  color: #6B7280;
-  margin-top: 8rpx;
-  display: block;
-}
-
-/* 宠物选择 */
-.pet-select {
-  margin-bottom: 24rpx;
-}
-
-.pet-picker {
-  display: flex;
-  align-items: center;
-  background: #FFFFFF;
-  padding: 24rpx 28rpx;
-  border-radius: 20rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
-}
-
-.pet-picker-label {
-  font-size: 28rpx;
-  color: #6B7280;
-}
-
-.pet-picker-value {
-  flex: 1;
-  font-size: 30rpx;
-  color: #8B5CF6;
-  font-weight: 500;
-  margin-left: 8rpx;
-}
-
-.pet-picker-arrow {
-  font-size: 32rpx;
-  color: #9CA3AF;
-}
-
-/* 健康卡片 */
-.health-cards {
-  display: flex;
-  gap: 16rpx;
-  margin-bottom: 32rpx;
-}
-
-.health-card {
-  flex: 1;
-  background: #FFFFFF;
-  border-radius: 20rpx;
-  padding: 24rpx;
+  background: #f8fafc;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 
-.card-icon {
-  font-size: 40rpx;
-  margin-bottom: 12rpx;
+/* 头部 */
+.header {
+  position: relative;
+  padding-bottom: 30rpx;
+  flex-shrink: 0;
 }
 
-.card-value {
-  font-size: 32rpx;
-  font-weight: 700;
-  color: #1F2937;
+.header-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(165deg, #5ECFB5, #2D9CDB);
 }
 
-.card-label {
-  font-size: 24rpx;
-  color: #9CA3AF;
-  margin-top: 8rpx;
-}
-
-.section-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #1F2937;
-  margin-bottom: 16rpx;
-}
-
-.record-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12rpx;
-}
-
-.record-card {
-  background: #FFFFFF;
-  border-radius: 16rpx;
-  padding: 24rpx;
+.header-content {
+  position: relative;
+  height: 120rpx;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  padding: 0 30rpx;
+  padding-top: var(--status-bar-height, 0);
 }
 
-.record-icon {
-  font-size: 40rpx;
-  margin-right: 16rpx;
-}
-
-.record-content {
-  flex: 1;
-}
-
-.record-title {
-  font-size: 30rpx;
-  color: #1F2937;
-  display: block;
-}
-
-.record-desc {
-  font-size: 26rpx;
-  color: #9CA3AF;
-  margin-top: 4rpx;
-  display: block;
-}
-
-.record-date {
-  font-size: 24rpx;
-  color: #D1D5DB;
-}
-
-/* 空状态 */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 80rpx 40rpx;
-}
-
-.empty-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #1F2937;
-  margin-bottom: 16rpx;
-}
-
-.empty-desc {
-  font-size: 28rpx;
-  color: #9CA3AF;
-}
-
-/* 悬浮按钮 */
-.fab {
-  position: fixed;
-  right: 40rpx;
-  bottom: 56rpx;
-  width: 112rpx;
-  height: 112rpx;
-  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+.back-btn {
+  width: 64rpx;
+  height: 64rpx;
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 12rpx 32rpx rgba(139, 92, 246, 0.4);
 }
 
-.fab-icon {
-  font-size: 56rpx;
-  color: #FFFFFF;
+.back-icon {
+  color: white;
+  font-size: 40rpx;
   font-weight: 300;
 }
 
-/* 弹窗 */
-.modal-mask {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.modal {
-  background: #FFFFFF;
-  border-radius: 32rpx;
-  padding: 40rpx;
-  width: 80%;
-  max-width: 600rpx;
-  max-height: 80vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32rpx;
-}
-
-.modal-title {
+.header-title {
   font-size: 36rpx;
   font-weight: 600;
-  color: #1F2937;
+  color: white;
 }
 
-.modal-close {
+.header-placeholder {
+  width: 64rpx;
+}
+
+/* 表单 */
+.form-body {
+  flex: 1;
+  padding: 30rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 30rpx;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.section-label {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.pet-type-grid {
+  display: flex;
+  gap: 20rpx;
+}
+
+.pet-type-chip {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
+  padding: 24rpx 16rpx;
+  background: white;
+  border-radius: 20rpx;
+  border: 2rpx solid #e5e7eb;
+}
+
+.pet-type-chip.active {
+  border-color: #2bb598;
+  background: rgba(43, 181, 152, 0.08);
+}
+
+.type-emoji {
   font-size: 48rpx;
-  color: #9CA3AF;
 }
 
-.form-group {
-  margin-bottom: 24rpx;
+.type-label {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #6b7280;
 }
 
-.label {
-  font-size: 28rpx;
-  color: #6B7280;
-  display: block;
-  margin-bottom: 12rpx;
+.pet-type-chip.active .type-label {
+  color: #2bb598;
 }
 
-.picker, .input, .textarea {
+.input-area {
+  position: relative;
+  background: white;
+  border-radius: 20rpx;
+  border: 2rpx solid #e5e7eb;
+  padding: 20rpx;
+}
+
+.symptom-input {
   width: 100%;
-  background: #F9FAFB;
+  height: 240rpx;
+  font-size: 28rpx;
+  line-height: 1.6;
+  color: #1f2937;
+}
+
+.input-count {
+  position: absolute;
+  right: 20rpx;
+  bottom: 16rpx;
+  font-size: 24rpx;
+  color: #9ca3af;
+}
+
+.disclaimer-box {
+  background: rgba(255, 140, 66, 0.08);
+  border: 2rpx solid rgba(255, 140, 66, 0.3);
   border-radius: 16rpx;
   padding: 20rpx;
-  font-size: 30rpx;
-  box-sizing: border-box;
+  display: flex;
+  gap: 16rpx;
+  align-items: flex-start;
 }
 
-.textarea {
-  min-height: 120rpx;
+.disc-icon {
+  font-size: 36rpx;
+}
+
+.disc-text {
+  flex: 1;
+  font-size: 26rpx;
+  color: #c25a00;
+  line-height: 1.5;
+  font-weight: 500;
 }
 
 .submit-btn {
-  width: 100%;
   height: 96rpx;
-  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  background: linear-gradient(135deg, #2bb598 0%, #2d9cdb 100%);
+  color: white;
+  font-size: 32rpx;
+  font-weight: 600;
   border-radius: 48rpx;
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-top: auto;
+}
+
+.submit-btn.disabled {
+  background: #d1d5db;
+}
+
+.submit-btn::after {
+  border: none;
+}
+
+/* 加载状态 */
+.loading-body {
+  flex: 1;
+  background: linear-gradient(180deg, #ebf9f5 0%, #fff 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60rpx 48rpx;
+}
+
+.health-orb {
+  width: 220rpx;
+  height: 220rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5ECFB5, #2D9CDB);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 96rpx;
+  box-shadow: 0 0 0 28rpx rgba(43, 184, 156, 0.1), 0 0 0 56rpx rgba(43, 184, 156, 0.05);
+  animation: pulse-teal 2s ease-in-out infinite;
+  margin-bottom: 56rpx;
+}
+
+@keyframes pulse-teal {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 28rpx rgba(43, 184, 156, 0.1), 0 0 0 56rpx rgba(43, 184, 156, 0.05); }
+  50% { transform: scale(1.04); box-shadow: 0 0 0 40rpx rgba(43, 184, 156, 0.12), 0 0 0 80rpx rgba(43, 184, 156, 0.06); }
+}
+
+.loading-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 12rpx;
+}
+
+.loading-desc {
+  font-size: 28rpx;
+  color: #6b7280;
+}
+
+.loading-steps {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 56rpx;
+}
+
+.loading-step {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 20rpx 28rpx;
+  background: white;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  color: #9ca3af;
+}
+
+.loading-step.done {
+  color: #2bb598;
+}
+
+.loading-step.active {
+  color: #1a6fa8;
+  font-weight: 600;
+}
+
+.step-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #e5e7eb;
+}
+
+.loading-step.done .step-dot {
+  background: #2bb598;
+}
+
+.loading-step.active .step-dot {
+  background: #1a6fa8;
+  animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* 结果页 */
+.result-body {
+  flex: 1;
+  padding: 0 30rpx 40rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 30rpx;
+  overflow-y: auto;
+}
+
+.urgency-banner {
+  margin-top: 20rpx;
+  border-radius: 20rpx;
+  padding: 28rpx 32rpx;
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.urgency-banner.medium {
+  background: rgba(247, 201, 72, 0.15);
+  border: 2rpx solid rgba(247, 201, 72, 0.5);
+}
+
+.urgency-banner.high {
+  background: rgba(255, 71, 87, 0.1);
+  border: 2rpx solid rgba(255, 71, 87, 0.5);
+  animation: border-pulse 1.5s ease-in-out infinite;
+}
+
+.urgency-banner.low {
+  background: rgba(38, 208, 124, 0.1);
+  border: 2rpx solid rgba(38, 208, 124, 0.4);
+}
+
+@keyframes border-pulse {
+  0%, 100% { border-color: rgba(255, 71, 87, 0.5); }
+  50% { border-color: rgba(255, 71, 87, 1); }
+}
+
+.urgency-icon {
+  font-size: 56rpx;
+}
+
+.urgency-level {
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.urgency-level.medium {
+  color: #d4900a;
+}
+
+.urgency-level.high {
+  color: #ff4757;
+}
+
+.urgency-level.low {
+  color: #1a9457;
+}
+
+.urgency-desc {
+  font-size: 24rpx;
+  color: #6b7280;
+  margin-top: 4rpx;
+}
+
+.result-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.cause-item {
+  background: white;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  display: flex;
+  gap: 24rpx;
+  align-items: flex-start;
+  border: 1rpx solid #e5e7eb;
+}
+
+.cause-rank {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  background: rgba(43, 181, 152, 0.1);
+  color: #2bb598;
+  font-size: 24rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cause-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 6rpx;
+  display: block;
+}
+
+.cause-desc {
+  font-size: 26rpx;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.advice-list {
+  background: white;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  border: 1rpx solid #e5e7eb;
+}
+
+.advice-item {
+  display: flex;
+  gap: 16rpx;
+  align-items: flex-start;
+  margin-bottom: 16rpx;
+}
+
+.advice-item:last-child {
+  margin-bottom: 0;
+}
+
+.advice-bullet {
+  color: #2bb598;
+  font-weight: 700;
+  font-size: 32rpx;
+  line-height: 1;
+}
+
+.advice-text {
+  flex: 1;
+  font-size: 28rpx;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.comfort-card {
+  background: linear-gradient(135deg, rgba(43, 184, 156, 0.06), rgba(45, 156, 219, 0.06));
+  border: 1rpx solid rgba(43, 184, 156, 0.2);
+  border-radius: 24rpx;
+  padding: 32rpx;
+}
+
+.comfort-text {
+  font-size: 28rpx;
+  color: #1a6e5a;
+  line-height: 1.7;
+  font-style: italic;
+}
+
+.disclaimer-banner {
+  background: rgba(255, 71, 87, 0.06);
+  border: 2rpx solid rgba(255, 71, 87, 0.2);
+  border-radius: 16rpx;
+  padding: 24rpx;
+  font-size: 24rpx;
+  color: #b71c1c;
+  line-height: 1.5;
+  font-weight: 500;
+  display: flex;
+  gap: 16rpx;
+  align-items: flex-start;
+}
+
+.result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  margin-top: 20rpx;
+}
+
+.btn-primary {
+  height: 96rpx;
+  background: linear-gradient(135deg, #2bb598 0%, #2d9cdb 100%);
+  color: white;
   font-size: 32rpx;
   font-weight: 600;
-  color: #FFFFFF;
-  margin-top: 32rpx;
+  border-radius: 48rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-primary::after {
+  border: none;
+}
+
+.btn-secondary {
+  height: 96rpx;
+  background: white;
+  color: #6b7280;
+  font-size: 32rpx;
+  font-weight: 600;
+  border-radius: 48rpx;
+  border: 2rpx solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-secondary::after {
   border: none;
 }
 </style>

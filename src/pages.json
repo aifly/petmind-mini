@@ -8,80 +8,50 @@
       }
     },
     {
-      "path": "pages/pet-add/pet-add",
+      "path": "pages/decode/decode",
       "style": {
-        "navigationBarTitleText": "添加宠物",
+        "navigationBarTitleText": "行为解码",
         "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/pet-detail/pet-detail",
-      "style": {
-        "navigationBarTitleText": "宠物详情"
-      }
-    },
-    {
-      "path": "pages/feeding/feeding",
-      "style": {
-        "navigationBarTitleText": "喂养记录"
       }
     },
     {
       "path": "pages/health/health",
       "style": {
-        "navigationBarTitleText": "健康记录"
+        "navigationBarTitleText": "健康急救箱",
+        "navigationStyle": "custom"
       }
     },
     {
-      "path": "pages/calendar/calendar",
+      "path": "pages/profile/profile",
       "style": {
-        "navigationBarTitleText": "日历"
-      }
-    },
-    {
-      "path": "pages/photo/photo",
-      "style": {
-        "navigationBarTitleText": "相册"
-      }
-    },
-    {
-      "path": "pages/settings/settings",
-      "style": {
-        "navigationBarTitleText": "我的"
+        "navigationBarTitleText": "我的",
+        "navigationStyle": "custom"
       }
     }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "PetMind",
-    "navigationBarBackgroundColor": "#8B5CF6",
-    "backgroundColor": "#F9FAFB"
+    "navigationBarBackgroundColor": "#1A1A2E",
+    "backgroundColor": "#F7F8FA"
   },
   "tabBar": {
     "color": "#9CA3AF",
-    "selectedColor": "#8B5CF6",
+    "selectedColor": "#FF7B54",
     "borderStyle": "white",
     "backgroundColor": "#FFFFFF",
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "首页"
+        "text": "工具台",
+        "iconPath": "static/tabbar/tool.png",
+        "selectedIconPath": "static/tabbar/tool-active.png"
       },
       {
-        "pagePath": "pages/feeding/feeding",
-        "text": "喂养"
-      },
-      {
-        "pagePath": "pages/health/health",
-        "text": "健康"
-      },
-      {
-        "pagePath": "pages/calendar/calendar",
-        "text": "日历"
-      },
-      {
-        "pagePath": "pages/settings/settings",
-        "text": "我的"
+        "pagePath": "pages/profile/profile",
+        "text": "我的",
+        "iconPath": "static/tabbar/profile.png",
+        "selectedIconPath": "static/tabbar/profile-active.png"
       }
     ]
   }
